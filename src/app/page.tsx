@@ -1,5 +1,3 @@
-'use client';
-
 import HeroSwitch from '@/components/HeroSwitch';
 
 export default function Page() {
