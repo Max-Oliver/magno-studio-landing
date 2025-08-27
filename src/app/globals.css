@@ -1,101 +1,26 @@
-@import 'tailwindcss/preflight.css';
-@import 'tailwindcss/theme.css';
-@import 'tailwindcss/utilities.css';
+@import "tailwindcss/preflight.css";
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
 
-/* Helpers */
-:root {
-  --spot-x: 50%;
-  --spot-y: 50%;
-}
-
-/* Máscara que oculta el lado izquierdo del canvas (fade suave) */
+/* Máscara para recortar 3D a la derecha */
 .hero-3d-mask {
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent 40%,
-    black 56%,
-    black 100%
-  );
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent 40%,
-    black 56%,
-    black 100%
-  );
-  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 40%, black 56%, black 100%);
+  mask-image: linear-gradient(to right, transparent 0%, transparent 40%, black 56%, black 100%);
 }
 
-/* globals.css */
+/* Overlay de grano (usa /noise.png si existe) */
 .noise-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+  position: absolute; inset: 0; pointer-events: none;
   background-image: url('/noise.png');
-  background-size: 256px 256px; /* tile */
+  background-size: 256px 256px;
   background-repeat: repeat;
-  mix-blend-mode: overlay; /* integra con el fondo */
-  opacity: 0.22; /* ajustá 0.12–0.30 según gusto */
-}
-
-.grain-procedural {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.18; /* controla intensidad */
   mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,\ <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'>\ <filter id='n'>\ <feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/>\ <feColorMatrix type='saturate' values='0'/>\ <feComponentTransfer><feFuncA type='table' tableValues='0 0.12'/></feComponentTransfer>\ </filter>\ <rect width='100%' height='100%' filter='url(#n)' opacity='1'/>\</svg>");
-  background-size: 220px 220px; /* tile */
-}
-.grain-tint {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-      40% 40% at 65% 52%,
-      rgba(255, 74, 230, 0.08),
-      transparent 60%
-    ),
-    radial-gradient(
-      35% 35% at 70% 35%,
-      rgba(125, 107, 255, 0.06),
-      transparent 60%
-    );
-  mix-blend-mode: screen;
-}
-/* opcional: animación sutil para que no se sienta estático */
-@keyframes grainShift {
-  0% {
-    background-position: 0 0;
-  }
-  50% {
-    background-position: 120px 80px;
-  }
-  100% {
-    background-position: 0 0;
-  }
-}
-.noise-overlay.motion {
-  animation: grainShift 12s linear infinite;
+  opacity: .22;
 }
 
-/* Spotlight de cursor */
-.spotlight::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    34rem 24rem at var(--spot-x) var(--spot-y),
-    rgba(238, 0, 255, 0.16),
-    transparent 60%
-  );
-}
-
-/* Fallback si usuario prefiere menos animación */
-@media (prefers-reduced-motion: reduce) {
-  .motion-safe-only {
-    display: none !important;
-  }
+/* Procedural (fallback) */
+.grain-procedural {
+  position:absolute; inset:0; pointer-events:none; opacity:.18; mix-blend-mode:overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='table' tableValues='0 0.12'/></feComponentTransfer></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size:220px 220px;
 }

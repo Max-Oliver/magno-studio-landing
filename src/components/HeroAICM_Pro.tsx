@@ -5,11 +5,23 @@ import {
   RoundedBox,
   MeshTransmissionMaterial,
   ContactShadows,
+  AdaptiveDpr,
 } from '@react-three/drei';
-// import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+
+export const TUNING = {
+  plateAmp: 0.06, // TODO: ajustar amplitud placas
+  plateSpeedTop: 0.8, // TODO: velocidad placa superior
+  plateSpeedBottom: 0.95, // TODO: velocidad placa inferior
+  coinRotate: 1.6, // TODO: velocidad giro moneda
+  coinBounce: 0.035, // TODO: altura bounce moneda
+};
+
+const DISABLE_BLOOM = process.env.NEXT_PUBLIC_DISABLE_BLOOM === '1';
+const LOW_GPU = process.env.NEXT_PUBLIC_LOW_GPU === '1';
 
 const HeroCSS = dynamic(() => import('@/components/HeroCSS'), { ssr: false });
 
@@ -62,9 +74,12 @@ function Plates() {
 
   useFrame((s) => {
     const t = s.clock.getElapsedTime();
-    if (top.current) top.current.position.y = 0.28 + Math.sin(t * 0.8) * 0.06;
+    if (top.current)
+      top.current.position.y =
+        0.28 + Math.sin(t * TUNING.plateSpeedTop) * TUNING.plateAmp;
     if (bottom.current)
-      bottom.current.position.y = -0.28 + Math.cos(t * 0.95) * 0.06;
+      bottom.current.position.y =
+        -0.28 + Math.cos(t * TUNING.plateSpeedBottom) * TUNING.plateAmp;
   });
 
   return (
@@ -110,20 +125,29 @@ function GlassTube() {
       new THREE.Vector3(0.9, -0.2, 0.0),
     ];
     const curve = new THREE.CatmullRomCurve3(p, false, 'catmullrom', 0.5);
-    return new THREE.TubeGeometry(curve, 80, 0.16, 48, false);
+    const tubular = LOW_GPU ? 36 : 80; // TODO: refinar segmentos
+    const radial = LOW_GPU ? 24 : 48; // TODO: refinar segmentos radiales
+    return new THREE.TubeGeometry(curve, tubular, 0.16, radial, false);
   }, []);
   return (
     <mesh geometry={geom} position={[0.2, 0, 0]} rotation={[0, 0.1, 0]}>
-      <MeshTransmissionMaterial
-        thickness={1}
-        ior={1.45}
-        roughness={0.08}
-        anisotropy={0.15}
-        chromaticAberration={0.01}
-        transmission={1}
-        samples={4}
-        resolution={96}
-      />
+      {LOW_GPU ? (
+        <meshPhysicalMaterial
+          transmission={0.95}
+          thickness={0.9}
+          roughness={0.15}
+          ior={1.45}
+        />
+      ) : (
+        <MeshTransmissionMaterial
+          thickness={0.9}
+          ior={1.45}
+          roughness={0.08}
+          transmission={1}
+          samples={5}
+          resolution={128}
+        />
+      )}
     </mesh>
   );
 }
@@ -133,13 +157,14 @@ function Coin() {
   const ref = useRef<THREE.Mesh>(null!);
   useFrame((s) => {
     const t = s.clock.getElapsedTime();
-    ref.current.rotation.y = t * 1.6;
-    ref.current.position.y = 0.06 + Math.sin(t * 1.4) * 0.035;
+    ref.current.rotation.y = t * TUNING.coinRotate;
+    ref.current.position.y = 0.06 + Math.sin(t * 1.4) * TUNING.coinBounce;
   });
+  const segs = LOW_GPU ? 24 : 32;
   return (
     <group position={[0.45, 0.02, 0]} rotation={[0, 0.25, 0]}>
       <mesh ref={ref}>
-        <cylinderGeometry args={[0.28, 0.28, 0.05, 32]} />
+        <cylinderGeometry args={[0.28, 0.28, 0.05, segs]} />
         <meshStandardMaterial
           color={'#d4af37'}
           metalness={1}
@@ -148,7 +173,7 @@ function Coin() {
         />
       </mesh>
       <mesh>
-        <cylinderGeometry args={[0.282, 0.282, 0.052, 32, 1, true]} />
+        <cylinderGeometry args={[0.282, 0.282, 0.052, segs, 1, true]} />
         <meshStandardMaterial
           color={'#caa84a'}
           metalness={1}
@@ -159,28 +184,24 @@ function Coin() {
   );
 }
 
-export default function HeroAICMRefined3D() {
+export default function HeroAICM_Pro() {
   const [lost, setLost] = useState(false);
+  const [hasNoise, setHasNoise] = useState(false);
+  useEffect(() => {
+    fetch('/noise.png').then((r) => r.ok && setHasNoise(true));
+  }, []);
   if (lost) return <HeroCSS />;
 
   return (
     <section className="relative h-[92vh] overflow-hidden">
-      <div className="noise-overlay motion" />
-      <div className="grain-procedural" />
-      <div className="grain-tint" />
       {/* Canvas a la derecha (máscara) */}
-      <div className="absolute inset-0 hero-3d-mask">
+      <div className="absolute inset-0 hero-3d-mask pointer-events-none">
         <Canvas
           camera={{ position: [0, 0, 3], fov: 45 }}
-          dpr={[1, 1.25]}
-          gl={{
-            antialias: false,
-            powerPreference: 'high-performance',
-            alpha: true,
-          }}
+          dpr={[1, 1.5]}
+          gl={{ antialias: false, powerPreference: 'high-performance', alpha: true }}
           onCreated={({ gl }) => {
-            const cvs = (gl.getContext() as WebGLRenderingContext)
-              .canvas as HTMLCanvasElement;
+            const cvs = (gl.getContext() as WebGLRenderingContext).canvas as HTMLCanvasElement;
             cvs.addEventListener(
               'webglcontextlost',
               (e) => {
@@ -191,34 +212,23 @@ export default function HeroAICMRefined3D() {
             );
           }}
         >
+          <AdaptiveDpr />
           <color attach="background" args={['#f6f5fa']} />
-          <ambientLight intensity={0.6} />
+          <hemisphereLight intensity={0.9} />
           <directionalLight position={[3, 3, 3]} intensity={1.0} />
-          <directionalLight
-            position={[-3, 1, 2]}
-            intensity={0.9}
-            color={'#ff66ee'}
-          />
-          <group position={[1.15, 0.05, 0]} scale={0.95}>
+          <directionalLight position={[-3, 1, 2]} intensity={0.9} color={'#7d6bff'} />
+          <group position={[1.12, 0.05, 0]} scale={0.95}>
             <Plates />
             <GlassTube />
             <Coin />
-            <ContactShadows
-              position={[0, -0.55, 0]}
-              opacity={0.25}
-              scale={8}
-              blur={2.4}
-              far={2.5}
-            />
+            <ContactShadows position={[0, -0.55, 0]} opacity={0.25} scale={8} blur={2.4} far={2.5} />
           </group>
           <Environment preset="studio" />
-          {/* { <EffectComposer multisampling={0}>
-            <Bloom
-              intensity={1.05}
-              luminanceThreshold={0.82}
-              luminanceSmoothing={0.22}
-            />
-          </EffectComposer>} */}
+          {!DISABLE_BLOOM && (
+            <EffectComposer multisampling={0}>
+              <Bloom intensity={0.9} luminanceThreshold={0.85} />
+            </EffectComposer>
+          )}
         </Canvas>
       </div>
 
@@ -226,17 +236,11 @@ export default function HeroAICMRefined3D() {
       <div className="relative z-10 h-full flex items-center">
         <div className="container max-w-[720px]">
           <h1 className="text-5xl md:text-7xl font-extrabold leading-tight tracking-tight text-slate-900">
-            Diseño & Web con{' '}
-            <span className="text-fuchsia-500">impacto real</span>
+            Diseño & Web con <span className="text-fuchsia-500">impacto real</span>
           </h1>
-          <p className="mt-5 text-lg/7 text-slate-700/85">
-            Branding, sitios y automatizaciones que elevan tu marca.
-          </p>
+          <p className="mt-5 text-lg/7 text-slate-700/85">Branding, sitios y automatizaciones que elevan tu marca.</p>
           <div className="mt-8 flex gap-3">
-            <a
-              href="#contacto"
-              className="rounded-2xl px-5 py-3 bg-slate-900 text-white shadow-lg hover:opacity-90"
-            >
+            <a href="#contacto" className="rounded-2xl px-5 py-3 bg-slate-900 text-white shadow-lg hover:opacity-90">
               Agendar reunión
             </a>
             <a
@@ -250,7 +254,7 @@ export default function HeroAICMRefined3D() {
       </div>
 
       {/* Grain overlay */}
-      <div className="pointer-events-none absolute inset-0 bg-[url('/noise.png')] opacity-20 mix-blend-overlay" />
+      {hasNoise ? <div className="noise-overlay" /> : <div className="grain-procedural" />}
     </section>
   );
 }
